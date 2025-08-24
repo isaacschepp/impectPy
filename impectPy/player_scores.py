@@ -586,3 +586,147 @@ def getPlayerIterationScoresFromHost(
 
     # return result
     return averages
+
+
+######
+#
+# This function calculates xG/90 (open play, non-penalty) for each player in a single iteration
+#
+######
+
+
+def getPlayerOpenPlayXG90(
+        iteration: int, positions: list, token: str, session: requests.Session = requests.Session()
+) -> pd.DataFrame:
+    """
+    Calculate xG/90 (open play, non-penalty) for each player in a single iteration.
+    
+    Args:
+        iteration: The iteration ID to get data for
+        positions: List of positions to filter players by
+        token: API access token
+        session: Optional requests session
+    
+    Returns:
+        DataFrame with player data including xG/90 for open play, non-penalty situations
+    """
+
+    # create an instance of RateLimitedAPI
+    connection = RateLimitedAPI(session)
+
+    # construct header with access token
+    connection.session.headers.update({"Authorization": f"Bearer {token}"})
+
+    return getPlayerOpenPlayXG90FromHost(iteration, positions, connection, "https://api.impect.com")
+
+
+def getPlayerOpenPlayXG90FromHost(
+        iteration: int, positions: list, connection: RateLimitedAPI, host: str
+) -> pd.DataFrame:
+    """
+    Calculate xG/90 (open play, non-penalty) for each player in a single iteration.
+    
+    This function gets events data to filter for open play shots (excluding penalties)
+    and calculates the per-90-minute xG rate for each player.
+    """
+    
+    # check input for iteration argument
+    if not isinstance(iteration, int):
+        raise Exception("Input for iteration argument must be an integer")
+
+    # check input for positions argument
+    if not isinstance(positions, list):
+        raise Exception("Input for positions argument must be a list")
+
+    # check if the input positions are valid
+    invalid_positions = [position for position in positions if position not in allowed_positions]
+    if len(invalid_positions) > 0:
+        raise Exception(
+            f"Invalid position(s): {', '.join(invalid_positions)}."
+            f"\nChoose one or more of: {', '.join(allowed_positions)}"
+        )
+
+    # get matches for this iteration
+    matches_data = getMatchesFromHost(iteration=iteration, connection=connection, host=host)
+    match_ids = matches_data['id'].tolist()
+    
+    if len(match_ids) == 0:
+        raise Exception(f"No matches found for iteration {iteration}")
+
+    # get events data for all matches in the iteration
+    from .events import getEventsFromHost
+    events = getEventsFromHost(
+        matches=match_ids, 
+        include_kpis=True, 
+        include_set_pieces=False, 
+        connection=connection, 
+        host=host
+    )
+    
+    # filter for open play shots (exclude penalties and penalty shootouts)
+    # periodId == 5 indicates penalty shootout
+    # we also need to exclude regular penalties during the match
+    shot_filter = (events['actionType'] == 'SHOT') & (events['periodId'] != 5)
+    
+    # Try to filter out penalty shots if 'action' column exists
+    if 'action' in events.columns:
+        shot_filter = shot_filter & (events['action'] != 'PENALTY')
+    
+    open_play_shots = events[shot_filter].copy()
+    
+    # if no open play shots found, return empty result with proper structure
+    if len(open_play_shots) == 0:
+        print(f"No open play shots found for iteration {iteration}")
+        # get basic player data structure from regular iteration scores
+        base_data = getPlayerIterationScoresFromHost(iteration, positions, connection, host)
+        base_data['openPlayXG'] = 0.0
+        base_data['openPlayXG90'] = 0.0
+        return base_data[['iterationId', 'competitionName', 'season', 'squadId', 'squadName', 
+                         'playerId', 'playerName', 'positions', 'matchShare', 'playDuration', 
+                         'openPlayXG', 'openPlayXG90']]
+    
+    # aggregate open play xG by player
+    player_open_play_xg = open_play_shots.groupby([
+        'iterationId', 'squadId', 'playerId', 'playerPosition'
+    ]).agg({
+        'SHOT_XG': 'sum'
+    }).reset_index()
+    
+    # rename columns for consistency
+    player_open_play_xg = player_open_play_xg.rename(columns={
+        'SHOT_XG': 'openPlayXG',
+        'playerPosition': 'positions'
+    })
+    
+    # get base player iteration data to get match shares and play duration
+    base_data = getPlayerIterationScoresFromHost(iteration, positions, connection, host)
+    
+    # merge open play xG data with base player data
+    result = base_data.merge(
+        player_open_play_xg,
+        on=['iterationId', 'squadId', 'playerId', 'positions'],
+        how='left'
+    )
+    
+    # fill missing xG values with 0 (players who didn't take open play shots)
+    result['openPlayXG'] = result['openPlayXG'].fillna(0.0)
+    
+    # calculate xG per 90 minutes
+    # playDuration is in minutes, so we divide by playDuration and multiply by 90
+    result['openPlayXG90'] = result.apply(
+        lambda row: (row['openPlayXG'] / row['playDuration'] * 90) if row['playDuration'] > 0 else 0.0,
+        axis=1
+    )
+    
+    # select relevant columns for the result
+    result_columns = [
+        'iterationId', 'competitionName', 'season', 'squadId', 'squadName',
+        'playerId', 'wyscoutId', 'heimSpielId', 'skillCornerId', 'playerName',
+        'firstname', 'lastname', 'birthdate', 'birthplace', 'playerCountry', 'leg',
+        'positions', 'matchShare', 'playDuration', 'openPlayXG', 'openPlayXG90'
+    ]
+    
+    # return only the columns that exist in the result
+    available_columns = [col for col in result_columns if col in result.columns]
+    
+    return result[available_columns].sort_values(['squadId', 'playerId'])

@@ -234,7 +234,44 @@ squadIterationScores = ip.getSquadIterationScores(
 )
 
 # get squad rating for iteration
-squadRatings = ip.getSquadRatings(iteration=iteration, token=token
+squadRatings = ip.getSquadRatings(iteration=iteration, token=token)
+
+# get xG/90 (open play, non-penalty) for each player 
+# useful for analyzing attacking players' shot quality excluding penalties
+openPlayXG90 = ip.getPlayerOpenPlayXG90(
+    iteration=iteration,
+    positions=["CENTER_FORWARD", "LEFT_WINGER", "RIGHT_WINGER"],
+    token=token
+)
+```
+
+### Calculate xG/90 (Open Play, Non-Penalty)
+
+To get expected goals per 90 minutes for open play situations (excluding penalties), 
+you can use the `getPlayerOpenPlayXG90` function. This is particularly useful for 
+analyzing attacking players' shot quality and frequency in open play:
+
+``` python
+# define iteration and attacking positions
+iteration = 518
+positions = ["CENTER_FORWARD", "LEFT_WINGER", "RIGHT_WINGER", "ATTACKING_MIDFIELD"]
+
+# get xG/90 for open play, non-penalty situations
+openPlayXG90 = ip.getPlayerOpenPlayXG90(
+    iteration=iteration,
+    positions=positions,
+    token=token
+)
+
+# view key metrics
+print(openPlayXG90[['playerName', 'squadName', 'playDuration', 'openPlayXG', 'openPlayXG90']])
+```
+
+This function:
+- Filters out penalty shots and penalty shootouts
+- Calculates total xG from open play shots only
+- Provides per-90-minute rates based on actual playing time
+- Returns comprehensive player information along with the xG metrics
 ```
 
 You can now also retrieve the positional profile scores for players via our API. This 

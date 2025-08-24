@@ -5,7 +5,7 @@ from .matches import getMatches
 from .events import getEvents
 from .matchsums import getPlayerMatchsums, getSquadMatchsums
 from .iteration_averages import getPlayerIterationAverages, getSquadIterationAverages
-from .player_scores import getPlayerMatchScores, getPlayerIterationScores
+from .player_scores import getPlayerMatchScores, getPlayerIterationScores, getPlayerOpenPlayXG90
 from .squad_scores import getSquadMatchScores, getSquadIterationScores
 from .player_profile_scores import getPlayerProfileScores
 from .xml import generateXML
