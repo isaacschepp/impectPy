@@ -6,7 +6,11 @@ from .matches import getMatchesFromHost
 from .events import getEventsFromHost
 from .matchsums import getPlayerMatchsumsFromHost, getSquadMatchsumsFromHost
 from .iteration_averages import getPlayerIterationAveragesFromHost, getSquadIterationAveragesFromHost
-from .player_scores import getPlayerMatchScoresFromHost, getPlayerIterationScoresFromHost
+from .player_scores import (
+    getPlayerMatchScoresFromHost,
+    getPlayerIterationScoresFromHost,
+    getPlayerOpenPlayXG90FromHost,
+)
 from .squad_scores import getSquadMatchScoresFromHost, getSquadIterationScoresFromHost
 from .player_profile_scores import getPlayerProfileScoresFromHost
 from .xml import generateXML
@@ -118,6 +122,11 @@ class Impect:
             matches, self.connection, self.__config.HOST
         )
 
+    def getPlayerOpenPlayXG90(self, iteration: int, positions: list) -> pd.DataFrame:
+        return getPlayerOpenPlayXG90FromHost(
+            iteration, positions, self.connection, self.__config.HOST
+        )
+
     @staticmethod
     def generateXML(
             events: pd.DataFrame,
@@ -127,6 +136,15 @@ class Impect:
             p2Start: int,
             p3Start: int,
             p4Start: int,
-            p5Start: int
+            p5Start: int,
+            codeTag: str,
+            labels=None,
+            kpis=None,
+            labelSorting: bool = True,
+            sequencing: bool = True,
+            buckets: bool = True,
     ) -> ET.ElementTree:
-        return generateXML(events, lead, lag, p1Start, p2Start, p3Start, p4Start, p5Start)
+        return generateXML(
+            events, lead, lag, p1Start, p2Start, p3Start, p4Start, p5Start,
+            codeTag, labels, kpis, labelSorting, sequencing, buckets
+        )

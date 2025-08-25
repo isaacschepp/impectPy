@@ -1,7 +1,7 @@
 # load packages
 import pandas as pd
 import requests
-from impectPy.helpers import RateLimitedAPI, unnest_mappings_df
+from impectPy.helpers import RateLimitedAPI, unnest_mappings_df, process_response as process_resp
 from .matches import getMatchesFromHost
 from .iterations import getIterationsFromHost
 
@@ -59,14 +59,15 @@ def getPlayerMatchScoresFromHost(matches: list, positions: list, connection: Rat
 
     # get match info
     iterations = pd.concat(
-        map(lambda match: connection.make_api_request_limited(
-            url=f"{host}/v5/customerapi/matches/{match}",
-            method="GET"
-        ).process_response(
+        map(lambda match: process_resp(
+            connection.make_api_request_limited(
+                url=f"{host}/v5/customerapi/matches/{match}",
+                method="GET"
+            ),
             endpoint="Iterations"
-        ),
-            matches),
-        ignore_index=True)
+        ), matches),
+        ignore_index=True
+    )
 
     # filter for matches that are unavailable
     fail_matches = iterations[iterations.lastCalculationDate.isnull()].id.drop_duplicates().to_list()
@@ -89,28 +90,31 @@ def getPlayerMatchScoresFromHost(matches: list, positions: list, connection: Rat
 
     # get player scores
     scores_raw = pd.concat(
-        map(lambda match: connection.make_api_request_limited(
-            url=f"{host}/v5/customerapi/matches/{match}/positions/{position_string}/player-scores",
-            method="GET"
-        ).process_response(
+        map(lambda match: process_resp(
+            connection.make_api_request_limited(
+                url=f"{host}/v5/customerapi/matches/{match}/positions/{position_string}/player-scores",
+                method="GET"
+            ),
             endpoint="PlayerMatchScores"
         ).assign(
             matchId=match,
             positions=position_string
-        ),
-            matches),
-        ignore_index=True)
+        ), matches),
+        ignore_index=True
+    )
 
     # get players
     players = pd.concat(
         map(
-            lambda iteration: connection.make_api_request_limited(
-                url=f"{host}/v5/customerapi/iterations/{iteration}/players",
-                method="GET"
-            ).process_response(
+            lambda iteration: process_resp(
+                connection.make_api_request_limited(
+                    url=f"{host}/v5/customerapi/iterations/{iteration}/players",
+                    method="GET"
+                ),
                 endpoint="Players"
             ),
-            iterations),
+            iterations
+        ),
         ignore_index=True
     )[["id", "commonname", "firstname", "lastname", "birthdate", "birthplace", "leg", "countryIds", "idMappings"]]
 
@@ -124,20 +128,22 @@ def getPlayerMatchScoresFromHost(matches: list, positions: list, connection: Rat
 
     # get squads
     squads = pd.concat(
-        map(lambda iteration: connection.make_api_request_limited(
-            url=f"{host}/v5/customerapi/iterations/{iteration}/squads",
-            method="GET"
-        ).process_response(
+        map(lambda iteration: process_resp(
+            connection.make_api_request_limited(
+                url=f"{host}/v5/customerapi/iterations/{iteration}/squads",
+                method="GET"
+            ),
             endpoint="Squads"
-        ),
-            iterations),
-        ignore_index=True)[["id", "name"]].drop_duplicates()
+        ), iterations),
+        ignore_index=True
+    )[["id", "name"]].drop_duplicates()
 
     # get player scores
-    scores = connection.make_api_request_limited(
-        url=f"{host}/v5/customerapi/player-scores",
-        method="GET"
-    ).process_response(
+    scores = process_resp(
+        connection.make_api_request_limited(
+            url=f"{host}/v5/customerapi/player-scores",
+            method="GET"
+        ),
         endpoint="PlayerScores"
     )[["id", "name"]]
 
@@ -155,10 +161,11 @@ def getPlayerMatchScoresFromHost(matches: list, positions: list, connection: Rat
     iterations = getIterationsFromHost(connection=connection, host=host)
 
     # get country data
-    countries = connection.make_api_request_limited(
-        url=f"{host}/v5/customerapi/countries",
-        method="GET"
-    ).process_response(
+    countries = process_resp(
+        connection.make_api_request_limited(
+            url=f"{host}/v5/customerapi/countries",
+            method="GET"
+        ),
         endpoint="KPIs"
     )
 
@@ -383,10 +390,11 @@ def getPlayerIterationScoresFromHost(
         )
 
     # get squads
-    squads = connection.make_api_request_limited(
-        url=f"{host}/v5/customerapi/iterations/{iteration}/squads",
-        method="GET"
-    ).process_response(
+    squads = process_resp(
+        connection.make_api_request_limited(
+            url=f"{host}/v5/customerapi/iterations/{iteration}/squads",
+            method="GET"
+        ),
         endpoint="Squads"
     )
 
@@ -398,20 +406,21 @@ def getPlayerIterationScoresFromHost(
 
     # get player iteration averages per squad
     scores_raw = pd.concat(
-        map(lambda squadId: connection.make_api_request_limited(
-            url=f"{host}/v5/customerapi/iterations/{iteration}/"
-                f"squads/{squadId}/positions/{position_string}/player-scores",
-            method="GET"
-        ).process_response(
+        map(lambda squadId: process_resp(
+            connection.make_api_request_limited(
+                url=f"{host}/v5/customerapi/iterations/{iteration}/"
+                    f"squads/{squadId}/positions/{position_string}/player-scores",
+                method="GET"
+            ),
             endpoint="PlayerIterationScores",
             raise_exception=False
         ).assign(
             iterationId=iteration,
             squadId=squadId,
             positions=position_string
-        ),
-            squad_ids),
-        ignore_index=True)
+        ), squad_ids),
+        ignore_index=True
+    )
 
     # raise exception if no player played at given positions in entire iteration
     if len(scores_raw) == 0:
@@ -423,10 +432,11 @@ def getPlayerIterationScoresFromHost(
         print(f"No players played at positions {positions} for iteration {iteration} for following squads:\n\t{', '.join(error_list)}")
 
     # get players
-    players = connection.make_api_request_limited(
-        url=f"{host}/v5/customerapi/iterations/{iteration}/players",
-        method="GET"
-    ).process_response(
+    players = process_resp(
+        connection.make_api_request_limited(
+            url=f"{host}/v5/customerapi/iterations/{iteration}/players",
+            method="GET"
+        ),
         endpoint="Players"
     )[["id", "commonname", "firstname", "lastname", "birthdate", "birthplace", "leg", "countryIds", "idMappings"]]
 
@@ -439,10 +449,11 @@ def getPlayerIterationScoresFromHost(
     players = unnest_mappings_df(players, "idMappings").drop(["idMappings"], axis=1).drop_duplicates()
 
     # get scores
-    scores = connection.make_api_request_limited(
-        url=f"{host}/v5/customerapi/player-scores",
-        method="GET"
-    ).process_response(
+    scores = process_resp(
+        connection.make_api_request_limited(
+            url=f"{host}/v5/customerapi/player-scores",
+            method="GET"
+        ),
         endpoint="playerScores"
     )[["id", "name"]]
 
@@ -450,10 +461,11 @@ def getPlayerIterationScoresFromHost(
     iterations = getIterationsFromHost(connection=connection, host=host)
 
     # get country data
-    countries = connection.make_api_request_limited(
-        url=f"{host}/v5/customerapi/countries",
-        method="GET"
-    ).process_response(
+    countries = process_resp(
+        connection.make_api_request_limited(
+            url=f"{host}/v5/customerapi/countries",
+            method="GET"
+        ),
         endpoint="KPIs"
     )
 
@@ -658,19 +670,35 @@ def getPlayerOpenPlayXG90FromHost(
     events = getEventsFromHost(
         matches=match_ids, 
         include_kpis=True, 
-        include_set_pieces=False, 
+        include_set_pieces=True, 
         connection=connection, 
         host=host
     )
     
-    # filter for open play shots (exclude penalties and penalty shootouts)
-    # periodId == 5 indicates penalty shootout
-    # we also need to exclude regular penalties during the match
+    # Strict open-play shot filter
+    # - actionType == 'SHOT'
+    # - exclude penalty shootouts (periodId == 5)
+    # - exclude penalties during the match (action == 'PENALTY')
+    # - exclude any set-piece context using event metadata
     shot_filter = (events['actionType'] == 'SHOT') & (events['periodId'] != 5)
-    
-    # Try to filter out penalty shots if 'action' column exists
+
+    # Exclude in-game penalties (if present)
     if 'action' in events.columns:
-        shot_filter = shot_filter & (events['action'] != 'PENALTY')
+        shot_filter &= (events['action'] != 'PENALTY')
+
+    # Exclude inferred set pieces (bool), if present
+    if 'inferredSetPiece' in events.columns:
+        shot_filter &= (~events['inferredSetPiece'].fillna(False))
+
+    # Exclude explicit set-piece linkage
+    if 'setPieceId' in events.columns:
+        shot_filter &= (events['setPieceId'].isna())
+
+    # Exclude known set-piece categories (e.g., corner, free kick)
+    if 'setPieceCategory' in events.columns:
+        shot_filter &= (events['setPieceCategory'].isna())
+    if 'adjSetPieceCategory' in events.columns:
+        shot_filter &= (events['adjSetPieceCategory'].isna())
     
     open_play_shots = events[shot_filter].copy()
     
@@ -712,9 +740,9 @@ def getPlayerOpenPlayXG90FromHost(
     result['openPlayXG'] = result['openPlayXG'].fillna(0.0)
     
     # calculate xG per 90 minutes
-    # playDuration is in minutes, so we divide by playDuration and multiply by 90
+    # playDuration is provided in seconds, so use: xG * (90*60) / playDuration
     result['openPlayXG90'] = result.apply(
-        lambda row: (row['openPlayXG'] / row['playDuration'] * 90) if row['playDuration'] > 0 else 0.0,
+        lambda row: (row['openPlayXG'] * 5400 / row['playDuration']) if row['playDuration'] > 0 else 0.0,
         axis=1
     )
     
